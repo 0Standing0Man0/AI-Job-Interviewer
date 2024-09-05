@@ -32,7 +32,7 @@ def extract_frames(video_path, output_dir, fps):
             break
 
         if current_frame % interval == 0:
-            filename = f"frame_{current_frame:04d}.jpg"
+            filename = f"Ambar_blue_{current_frame:04d}.jpg" # change name of frame here
             success = cv2.imwrite(os.path.join(output_dir, filename), frame)
             if success:
                 print(f"Saved frame {current_frame} as {filename}")
@@ -43,8 +43,8 @@ def extract_frames(video_path, output_dir, fps):
 
     cap.release()
 
-video_path = 'Dataset/bad.1.mp4'
-output_dir = 'Dataset/Frames'
+video_path = 'Ambar_blue.mp4'
+output_dir = 'Frames'
 desired_fps = 6
 
 extract_frames(video_path, output_dir, desired_fps)
