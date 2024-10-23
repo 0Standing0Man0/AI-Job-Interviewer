@@ -32,7 +32,7 @@ def extract_frames(video_path, output_dir, fps):
             break
 
         if current_frame % interval == 0:
-            filename = f"Ambar_blue_{current_frame:04d}.jpg" # change name of frame here
+            filename = f"Nil_white_5_{current_frame:04d}.jpg" # change name of frame here
             success = cv2.imwrite(os.path.join(output_dir, filename), frame)
             if success:
                 print(f"Saved frame {current_frame} as {filename}")
@@ -43,8 +43,8 @@ def extract_frames(video_path, output_dir, fps):
 
     cap.release()
 
-video_path = 'Ambar_blue.mp4'
-output_dir = 'Frames'
+video_path = 'AI-Job-Interviewer/Dataset/Nil_white_5.mp4'
+output_dir = 'AI-Job-Interviewer/Dataset/Frames'
 desired_fps = 6
 
 extract_frames(video_path, output_dir, desired_fps)
