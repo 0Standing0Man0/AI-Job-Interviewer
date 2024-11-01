@@ -1,0 +1,5 @@
+AlexNet - Accuracy - 99%
+VGGNet16 - all - 100%
+ResNetV18 - Accuracy - 70%
+ResNetV50 - Accuracy - 73%
+ResNetV152 - Accuracy - 73%
