@@ -26,21 +26,36 @@
     <h1>Video Interview</h1>
     <img id="videoFeed" src="/video_feed" alt="Video Feed">
     <br>
-    <button onclick="startRecording()">Start Interview</button>
-    <button onclick="stopRecording()">End Interview</button>
+    <button id="startBtn" onclick="startRecording()">Start Interview</button>
+    <button id="stopBtn" onclick="stopRecording()" disabled>End Interview</button>
     
     <script>
+        let recording = false;
+
+        function updateButtons() {
+            document.getElementById("startBtn").disabled = recording;
+            document.getElementById("stopBtn").disabled = !recording;
+        }
+
         function startRecording() {
             fetch('/start_recording')
-                .then(response => response.text())
-                .then(data => console.log(data));
+                .then(response => response.json())
+                .then(data => {
+                    recording = data.recording;
+                    updateButtons();
+                });
         }
 
         function stopRecording() {
             fetch('/stop_recording')
-                .then(response => response.text())
-                .then(data => console.log(data));
+                .then(response => response.json())
+                .then(data => {
+                    recording = data.recording;
+                    updateButtons();
+                });
         }
+
+        window.onload = updateButtons;
     </script>
 </body>
 </html>

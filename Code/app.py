@@ -1,4 +1,4 @@
-from flask import Flask, render_template, Response
+from flask import Flask, render_template, Response, jsonify
 import cv2
 import os
 
@@ -25,6 +25,8 @@ def generate_frames():
 
 @app.route('/')
 def index():
+    global recording
+    recording = False  # Reset state when page loads
     return render_template('index.html')
 
 @app.route('/video_feed')
@@ -34,7 +36,7 @@ def video_feed():
 @app.route('/start_recording')
 def start_recording():
     global recording, video_writer
-    recording = True
+    recording = True  # Update state
     
     if not os.path.exists('Interviews'):
         os.makedirs('Interviews')
@@ -42,18 +44,18 @@ def start_recording():
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     video_writer = cv2.VideoWriter('Interviews/interview.mp4', fourcc, 20.0, (640, 480))
     
-    return "Recording Started"
+    return jsonify({"message": "Recording Started", "recording": recording})
 
 @app.route('/stop_recording')
 def stop_recording():
     global recording, video_writer
-    recording = False
+    recording = False  # Update state
     
     if video_writer is not None:
         video_writer.release()
         video_writer = None
     
-    return "Recording Stopped"
+    return jsonify({"message": "Recording Stopped", "recording": recording})
 
 if __name__ == '__main__':
     app.run(debug=True)
