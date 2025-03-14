@@ -30,6 +30,14 @@ def get_posture_score(dataloader):
 
     return np.mean(all_preds)
 
+def remove_interview_stuff(folder):
+    for file in os.listdir(folder):
+        file_path = os.path.join(folder, file)
+        
+        # Ensure it's a file before deleting
+        if os.path.isfile(file_path):
+            os.remove(file_path)
+
 app = Flask(__name__)
 video_capture = None
 recording = False
@@ -94,6 +102,13 @@ def stop_recording():
     print(f"Posture is {'good' if np.round(Posture_Score) == 1 else 'bad'}!")
 
 
+
+    # # # DELETING VIDEOS AND FRAMES # # #
+    remove_interview_stuff('Interviews')
+    print("Interview video deleted")
+    remove_interview_stuff('Interview_Frames')
+    print("Interview frames deleted")
+    
     return jsonify({"message": "Recording Stopped", "recording": recording})
 
 if __name__ == '__main__':
