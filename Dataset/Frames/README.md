@@ -1,1 +1,0 @@
-# Frames generated from video
