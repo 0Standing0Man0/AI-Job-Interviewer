@@ -4,6 +4,7 @@ import os
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
+import subprocess
 
 from frames import extract_frames
 from preprocess import transform_greyscale, ScharrEdgeDetection
@@ -29,6 +30,13 @@ def get_posture_score(dataloader):
             all_preds.append(predicted.item())
 
     return np.mean(all_preds)
+
+def extract_audio(video_path, audio_path):
+    if not os.path.exists("Interview_Audios"):
+        os.makedirs("Interview_Audios")
+    
+    command = f"ffmpeg -i {video_path} -q:a 0 -map a {audio_path}"
+    subprocess.run(command, shell=True)
 
 def remove_interview_stuff(folder):
     for file in os.listdir(folder):
@@ -79,7 +87,7 @@ def start_recording():
         os.makedirs('Interviews')
     
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    video_writer = cv2.VideoWriter('Interviews/interview.mp4', fourcc, 20.0, (640, 480))
+    video_writer = cv2.VideoWriter('Interviews/Interview.mp4', fourcc, 20.0, (640, 480))
     
     return jsonify({"message": "Recording Started", "recording": recording})
 
@@ -93,6 +101,7 @@ def stop_recording():
         video_writer = None
 
     extract_frames('Interviews/Interview.mp4','Interview_Frames',1) # video path, output directory, fps
+    # extract_audio('Interviews/Interview.mp4', 'Interview_Audios/Interview.mp3')
 
     # Load dataset
     frames_dataset = FramesDataset("Interview_Frames", transform_greyscale, ScharrEdgeDetection())
@@ -102,12 +111,13 @@ def stop_recording():
     print(f"Posture is {'good' if np.round(Posture_Score) == 1 else 'bad'}!")
 
 
-
+    '''
     # # # DELETING VIDEOS AND FRAMES # # #
     remove_interview_stuff('Interviews')
     print("Interview video deleted")
     remove_interview_stuff('Interview_Frames')
     print("Interview frames deleted")
+    '''
     
     return jsonify({"message": "Recording Stopped", "recording": recording})
 
