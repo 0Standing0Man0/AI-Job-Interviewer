@@ -24,9 +24,14 @@
 </head>
 <body>
     <h1>Interview Tip: Be Yourself</h1>
-    <img id="videoFeed" src="/video_feed" alt="Video Feed">
+    
+    <!-- Video Feed -->
+    <img id="videoFeed" src="/video_feed" alt="Video Feed" onload="enableStartButton()" onerror="disableStartButton()">
+    
     <br>
-    <button id="startBtn" onclick="startRecording()">Start Interview</button>
+
+    <!-- Buttons -->
+    <button id="startBtn" onclick="startRecording()" disabled>Start Interview</button>
     <button id="stopBtn" onclick="stopRecording()" disabled>End Interview</button>
     
     <script>
@@ -53,6 +58,14 @@
                     recording = data.recording;
                     updateButtons();
                 });
+        }
+
+        function enableStartButton() {
+            document.getElementById("startBtn").disabled = false;
+        }
+
+        function disableStartButton() {
+            document.getElementById("startBtn").disabled = true;
         }
 
         window.onload = updateButtons;

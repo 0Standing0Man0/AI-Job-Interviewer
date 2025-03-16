@@ -4,12 +4,15 @@ import os
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
-import subprocess
+import threading
+import wave
+import pyaudio
 
 from frames import extract_frames
 from preprocess import transform_greyscale, ScharrEdgeDetection
 from model import Model
 from FramesDataset import FramesDataset
+from whisper_model import speech_to_text
 
 # Set device
 device = torch.device('cpu')
@@ -31,14 +34,35 @@ def get_posture_score(dataloader):
 
     return np.mean(all_preds)
 
-def extract_audio(video_path, audio_path):
-    if not os.path.exists("Interview_Audios"):
-        os.makedirs("Interview_Audios")
+# Function to record audio
+def record_audio(audio_filename):
+    """
+    Records audio in a separate thread and saves it as a .wav file.
+    """
+    global audio_recording
+    audio = pyaudio.PyAudio()
+    stream = audio.open(format=pyaudio.paInt16, channels=1, rate=44100, input=True, frames_per_buffer=1024)
     
-    command = f"ffmpeg -i {video_path} -q:a 0 -map a {audio_path}"
-    subprocess.run(command, shell=True)
+    frames = []
+    while audio_recording:
+        data = stream.read(1024)
+        frames.append(data)
+
+    stream.stop_stream()
+    stream.close()
+    audio.terminate()
+
+    # Save the recorded audio
+    with wave.open(audio_filename, 'wb') as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(audio.get_sample_size(pyaudio.paInt16))
+        wf.setframerate(44100)
+        wf.writeframes(b''.join(frames))
 
 def remove_interview_stuff(folder):
+    """
+    Deletes all files in a given folder.
+    """
     for file in os.listdir(folder):
         file_path = os.path.join(folder, file)
         
@@ -48,10 +72,14 @@ def remove_interview_stuff(folder):
 
 app = Flask(__name__)
 video_capture = None
+audio_recording = False
 recording = False
 video_writer = None
 
 def generate_frames():
+    """
+    Captures video frames from the webcam and streams them to the web page.
+    """
     global video_capture, recording, video_writer
     video_capture = cv2.VideoCapture(0)
     
@@ -70,38 +98,57 @@ def generate_frames():
 
 @app.route('/')
 def index():
+    """
+    Renders the home page.
+    """
     global recording
     recording = False  # Reset state when page loads
     return render_template('index.html')
 
 @app.route('/video_feed')
 def video_feed():
+    """
+    Streams video feed to the frontend.
+    """
     return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/start_recording')
 def start_recording():
-    global recording, video_writer
-    recording = True  # Update state
-    
+    """
+    Starts video and audio recording.
+    """
+    global recording, video_writer, audio_recording
+    recording = True  # Enable video recording
+    audio_recording = True  # Enable audio recording
+
     if not os.path.exists('Interviews'):
         os.makedirs('Interviews')
-    
+    if not os.path.exists('Interview_Audios'):
+        os.makedirs('Interview_Audios')
+
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     video_writer = cv2.VideoWriter('Interviews/Interview.mp4', fourcc, 20.0, (640, 480))
-    
+
+    # Start audio recording in a separate thread
+    audio_thread = threading.Thread(target=record_audio, args=('Interview_Audios/Interview.wav',))
+    audio_thread.start()
+
     return jsonify({"message": "Recording Started", "recording": recording})
 
 @app.route('/stop_recording')
 def stop_recording():
-    global recording, video_writer
-    recording = False  # Update state
-    
+    """
+    Stops video and audio recording, processes video frames, and evaluates posture.
+    """
+    global recording, video_writer, audio_recording
+    recording = False  # Stop video recording
+    audio_recording = False  # Stop audio recording
+
     if video_writer is not None:
         video_writer.release()
         video_writer = None
-
-    extract_frames('Interviews/Interview.mp4','Interview_Frames',1) # video path, output directory, fps
-    # extract_audio('Interviews/Interview.mp4', 'Interview_Audios/Interview.mp3')
+    extract_frames('Interviews/Interview.mp4', 'Interview_Frames', 1)  # video path, output directory, fps
+    
 
     # Load dataset
     frames_dataset = FramesDataset("Interview_Frames", transform_greyscale, ScharrEdgeDetection())
@@ -110,7 +157,6 @@ def stop_recording():
     Posture_Score = get_posture_score(frames_loader)
     print(f"Posture is {'good' if np.round(Posture_Score) == 1 else 'bad'}!")
 
-
     '''
     # # # DELETING VIDEOS AND FRAMES # # #
     remove_interview_stuff('Interviews')
@@ -118,7 +164,6 @@ def stop_recording():
     remove_interview_stuff('Interview_Frames')
     print("Interview frames deleted")
     '''
-    
     return jsonify({"message": "Recording Stopped", "recording": recording})
 
 if __name__ == '__main__':
