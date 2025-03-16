@@ -12,7 +12,7 @@ from frames import extract_frames
 from preprocess import transform_greyscale, ScharrEdgeDetection
 from model import Model
 from FramesDataset import FramesDataset
-from whisper_model import speech_to_text
+from whisper_model import transcribe_audio
 
 # Set device
 device = torch.device('cpu')
@@ -75,6 +75,7 @@ video_capture = None
 audio_recording = False
 recording = False
 video_writer = None
+processing = False
 
 def generate_frames():
     """
@@ -101,8 +102,9 @@ def index():
     """
     Renders the home page.
     """
-    global recording
+    global recording, processing
     recording = False  # Reset state when page loads
+    processing = False
     return render_template('index.html')
 
 @app.route('/video_feed')
@@ -138,17 +140,29 @@ def start_recording():
 @app.route('/stop_recording')
 def stop_recording():
     """
-    Stops video and audio recording, processes video frames, and evaluates posture.
+    Stops video and audio recording and transitions to processing.
     """
-    global recording, video_writer, audio_recording
+    global recording, video_writer, audio_recording, processing
     recording = False  # Stop video recording
     audio_recording = False  # Stop audio recording
 
     if video_writer is not None:
         video_writer.release()
         video_writer = None
-    extract_frames('Interviews/Interview.mp4', 'Interview_Frames', 1)  # video path, output directory, fps
     
+    processing = True
+    return jsonify({"message": "Processing Interview", "processing": processing})
+
+@app.route('/processing_interview')
+def processing_interview():
+    """
+    Processes the interview: extracts frames, evaluates posture, and performs speech-to-text.
+    """
+    global processing
+
+    extract_frames('Interviews/Interview.mp4', 'Interview_Frames', 1)  # video path, output directory, fps
+    answers = transcribe_audio()  # Converting speech to text
+    print(answers)
 
     # Load dataset
     frames_dataset = FramesDataset("Interview_Frames", transform_greyscale, ScharrEdgeDetection())
@@ -164,7 +178,9 @@ def stop_recording():
     remove_interview_stuff('Interview_Frames')
     print("Interview frames deleted")
     '''
-    return jsonify({"message": "Recording Stopped", "recording": recording})
+    
+    processing = False
+    return jsonify({"message": "Processing Completed", "processing": processing})
 
 if __name__ == '__main__':
     app.run(debug=True)

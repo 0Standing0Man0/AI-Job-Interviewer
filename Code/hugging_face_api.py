@@ -11,7 +11,7 @@ def extract_answers(file_path):
         content = f.read()
     
     # Extract answers using regex
-    answers = re.findall(r"Answer:\s*(.*)", content)
+    answers = re.findall(r"Answer \d+:\s*(.*)", content)
     return answers
 
 # Function to get correctness scores (0 to 1) for all answers in **one batch API call**
@@ -44,9 +44,3 @@ def compute_score(file_path):
     average_score = sum(correctness_scores) / total_questions if total_questions > 0 else 0.0
 
     return average_score, correctness_scores  # Return both the final score and per-answer scores
-
-
-avg_score, individual_scores = compute_score("Interview_Script/Interview.txt")
-    
-print(f"Average Correctness Score: {avg_score:.2f}")
-print("Scores per question:", individual_scores)

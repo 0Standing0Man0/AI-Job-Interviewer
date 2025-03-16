@@ -1,7 +1,7 @@
 import whisper
 import os
 
-def speech_to_text():
+def transcribe_audio():
     # Ensure the directory exists
     if not os.path.isdir("Interview_Script"):
         os.makedirs("Interview_Script")
@@ -13,13 +13,12 @@ def speech_to_text():
     audio_path = "Interview_Audios/Interview.wav"
     if not os.path.isfile(audio_path):
         print(f"Error: Audio file '{audio_path}' not found.")
+        result = 0
     else:
         # Transcribe the audio file
         result = model.transcribe(audio_path)
 
-        # Save the transcription to a text file
-        with open("Interview_Script/Interview.txt", "w", encoding="utf-8") as f:
-            f.write(result["text"])
-
         # Print the transcribed text
         print(result["text"])
+
+    return result["text"]

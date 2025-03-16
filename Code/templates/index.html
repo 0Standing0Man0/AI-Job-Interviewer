@@ -20,26 +20,45 @@
             font-size: 16px;
             cursor: pointer;
         }
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            display: none;
+        }
     </style>
 </head>
 <body>
     <h1>Interview Tip: Be Yourself</h1>
-    
-    <!-- Video Feed -->
+
     <img id="videoFeed" src="/video_feed" alt="Video Feed" onload="enableStartButton()" onerror="disableStartButton()">
     
     <br>
 
-    <!-- Buttons -->
     <button id="startBtn" onclick="startRecording()" disabled>Start Interview</button>
     <button id="stopBtn" onclick="stopRecording()" disabled>End Interview</button>
-    
+
+    <div id="processingOverlay" class="overlay">
+        <p>Processing Interview...</p>
+    </div>
+
     <script>
         let recording = false;
+        let processing = false;
 
         function updateButtons() {
-            document.getElementById("startBtn").disabled = recording;
-            document.getElementById("stopBtn").disabled = !recording;
+            document.getElementById("startBtn").disabled = recording || processing;
+            document.getElementById("stopBtn").disabled = !recording || processing;
         }
 
         function startRecording() {
@@ -54,9 +73,20 @@
         function stopRecording() {
             fetch('/stop_recording')
                 .then(response => response.json())
-                .then(data => {
-                    recording = data.recording;
+                .then(() => {
+                    processing = true;
+                    recording = false;
                     updateButtons();
+                    showProcessingOverlay();
+
+                    fetch('/processing_interview')
+                        .then(response => response.json())
+                        .then(() => {
+                            processing = false;
+                            recording = false;
+                            updateButtons();
+                            hideProcessingOverlay();
+                        });
                 });
         }
 
@@ -66,6 +96,14 @@
 
         function disableStartButton() {
             document.getElementById("startBtn").disabled = true;
+        }
+
+        function showProcessingOverlay() {
+            document.getElementById("processingOverlay").style.display = "flex";
+        }
+
+        function hideProcessingOverlay() {
+            document.getElementById("processingOverlay").style.display = "none";
         }
 
         window.onload = updateButtons;
