@@ -1,0 +1,10 @@
+flask
+torch
+torchvision
+openai-whisper
+numpy
+opencv-python
+pillow
+pyaudio
+requests
+transformers
