@@ -1,18 +1,26 @@
+# Author: Ambar Roy
+# email: ambarroy11@gmail.com
+
 from flask import Flask, render_template, Response, jsonify
 import cv2
 import os
 import numpy as np
+import random
 import torch
 from torch.utils.data import DataLoader
 import threading
 import wave
 import pyaudio
+import json
+import time
+
 
 from frames import extract_frames
 from preprocess import transform_greyscale, ScharrEdgeDetection
 from model import Model
 from FramesDataset import FramesDataset
 from whisper_model import transcribe_audio
+from hugging_face_api import compute_score
 
 # Set device
 device = torch.device('cpu')
@@ -76,6 +84,13 @@ audio_recording = False
 recording = False
 video_writer = None
 processing = False
+question_answer_counter = 0
+used_questions = set()
+all_questions = []
+posture_score = 0.0
+avg_comms_score = 0.0
+indivisual_comms_score = []
+display = False
 
 def generate_frames():
     """
@@ -123,17 +138,13 @@ def start_recording():
     recording = True  # Enable video recording
     audio_recording = True  # Enable audio recording
 
-    if not os.path.exists('Interviews'):
-        os.makedirs('Interviews')
+    if not os.path.exists('Interview_Videos'):
+        os.makedirs('Interview_Videos')
     if not os.path.exists('Interview_Audios'):
         os.makedirs('Interview_Audios')
 
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    video_writer = cv2.VideoWriter('Interviews/Interview.mp4', fourcc, 20.0, (640, 480))
-
-    # Start audio recording in a separate thread
-    audio_thread = threading.Thread(target=record_audio, args=('Interview_Audios/Interview.wav',))
-    audio_thread.start()
+    video_writer = cv2.VideoWriter('Interview_Videos/Interview_Video.mp4', fourcc, 20.0, (640, 480))   
 
     return jsonify({"message": "Recording Started", "recording": recording})
 
@@ -142,9 +153,11 @@ def stop_recording():
     """
     Stops video and audio recording and transitions to processing.
     """
-    global recording, video_writer, audio_recording, processing
+    global recording,audio_recording, used_questions, question_answer_counter, video_writer, processing
     recording = False  # Stop video recording
-    audio_recording = False  # Stop audio recording
+    audio_recording = False # Stop audio recording
+    used_questions.clear()
+    question_answer_counter=0
 
     if video_writer is not None:
         video_writer.release()
@@ -153,34 +166,146 @@ def stop_recording():
     processing = True
     return jsonify({"message": "Processing Interview", "processing": processing})
 
+@app.route('/get_first_question')
+def get_first_question():
+    """
+    Reads the first question from questions.txt and returns it as JSON.
+    """
+    global all_questions
+    question = "No questions available."  # Default message if file is empty or missing
+
+    if os.path.exists("questions.txt"):
+        with open("questions.txt", "r") as file:
+            lines = file.readlines()
+            if lines:
+                question = lines[0].strip()  # Get the first line (first question)
+    
+    all_questions.append(question)
+
+    return jsonify({"question": question})
+
+@app.route('/get_random_question')
+def get_random_question():
+    """
+    Reads a random question from questions.txt and returns it as JSON.
+    """
+    global used_questions, all_questions
+
+    if os.path.exists("questions.txt"):
+        with open("questions.txt", "r") as file:
+            lines = file.readlines()
+            if lines:
+                question = lines[0].strip()  # Get the first line (first question)
+        
+        available_indices = [i for i in range(1, min(len(lines), 11)) if i not in used_questions]  # Avoid out-of-range
+
+        if available_indices:  # Ensure there are questions left
+            chosen_index = random.choice(available_indices)  # Pick a valid index
+            question = lines[chosen_index].strip()  # Get question text
+            used_questions.add(chosen_index)  # Mark this index as used
+            all_questions.append(question)
+
+        else:
+            return jsonify({"question": "No more unique questions available."})
+    
+
+    return jsonify({"question": question})
+
+@app.route('/toggle_audio_recording')
+def toggle_audio_recording():
+    """
+    Toggles the state of audio recording.
+    """
+    global recording, audio_recording, question_answer_counter
+    audio_recording = not audio_recording  # Toggle state
+    print(f"audio: {audio_recording}")
+
+    if audio_recording:
+            # Start audio recording in a separate thread
+            audio_thread = threading.Thread(target=record_audio, args=(f"Interview_Audios/Answer_{question_answer_counter}.wav",))
+            audio_thread.start()
+    else:
+            question_answer_counter+=1
+
+    return jsonify({"audio_recording": audio_recording, "question_answer_counter": question_answer_counter})
+
 @app.route('/processing_interview')
 def processing_interview():
     """
     Processes the interview: extracts frames, evaluates posture, and performs speech-to-text.
     """
-    global processing
+    global processing, posture_score, avg_comms_score, indivisual_comms_score, display
 
-    extract_frames('Interviews/Interview.mp4', 'Interview_Frames', 1)  # video path, output directory, fps
-    answers = transcribe_audio()  # Converting speech to text
-    print(answers)
+    start_time = time.time()
 
+    all_answers = transcribe_audio()  # Converting speech to text
+    print(type(all_questions),type(all_answers))
+    print(all_questions)
+    print(all_answers)
+
+    # Write questions and answers to the file
+    if not os.path.exists('Interview_Script'):
+        os.makedirs('Interview_Script')
+    
+    if not os.path.exists('Interview_Script/Interview_Script.json') or os.stat('Interview_Script/Interview_Script.json').st_size == 0:
+        with open('Interview_Script/Interview_Script.json', "w") as f:
+            json.dump({"interview": []}, f)
+
+    with open('Interview_Script/Interview_Script.json', "w") as f:
+        json.dump({"interview": [{"question": q, "answer": a} for q, a in zip(all_questions, all_answers)]}, f)
+
+    extract_frames('Interview_Videos/Interview_Video.mp4', 'Interview_Frames', 1)  # video path, output directory, fps
+    
     # Load dataset
     frames_dataset = FramesDataset("Interview_Frames", transform_greyscale, ScharrEdgeDetection())
     frames_loader = DataLoader(frames_dataset, batch_size=1, shuffle=False)
 
-    Posture_Score = get_posture_score(frames_loader)
-    print(f"Posture is {'good' if np.round(Posture_Score) == 1 else 'bad'}!")
+    avg_comms_score, indivisual_comms_score = compute_score('Interview_Script/Interview_Script.json')
 
-    '''
+    posture_score = get_posture_score(frames_loader)
+
+    end_time = time.time()
+
+    print(f"Total Interview Analysis Time: {end_time - start_time} seconds")
+
+
+    print(f"Posture is {'good' if posture_score >= 0.7 else 'bad'}!\nPosture Rating:{posture_score*100:.3f}%")
+    print(f"Communication Skills: {avg_comms_score*100:.3f}%")
+    print(f"Indivisual Q&A Score: {indivisual_comms_score}")
+
+
     # # # DELETING VIDEOS AND FRAMES # # #
-    remove_interview_stuff('Interviews')
+    remove_interview_stuff('Interview_Videos')
     print("Interview video deleted")
     remove_interview_stuff('Interview_Frames')
     print("Interview frames deleted")
-    '''
+    remove_interview_stuff('Interview_Audios')
+    print("Interview audios deleted")
+    remove_interview_stuff('Interview_Script')
+    print("Interview script deleted")
+    
     
     processing = False
-    return jsonify({"message": "Processing Completed", "processing": processing})
+    display = True
+
+    return jsonify({"message": "Processing Completed", "processing": processing, "display": display})
+
+@app.route('/display_score')
+def display_score():
+    """
+    Return the interview analysis scores, including posture score, average communication score, and individual communication scores.
+    """
+    global display, posture_score, avg_comms_score, indivisual_comms_score
+
+    results = {
+        "posture_score": posture_score,
+        "average_communication_score": avg_comms_score,
+        "individual_communication_scores": indivisual_comms_score
+    }
+
+    display = False
+
+    return jsonify(results)
 
 if __name__ == '__main__':
     app.run(debug=True)

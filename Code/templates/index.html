@@ -1,3 +1,6 @@
+<!-- Author: Ambar Roy -->
+<!-- email: ambarroy11@gmail.com -->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -14,9 +17,19 @@
             width: 640px;
             height: 480px;
         }
+        .button-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 10px;
+        }
+        .button-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
         button {
             padding: 10px 20px;
-            margin: 10px;
             font-size: 16px;
             cursor: pointer;
         }
@@ -41,12 +54,21 @@
 <body>
     <h1>Interview Tip: Be Yourself</h1>
 
-    <img id="videoFeed" src="/video_feed" alt="Video Feed" onload="enableStartButton()" onerror="disableStartButton()">
-    
-    <br>
+    <img id="videoFeed" src="/video_feed" alt="Video Feed" onload="enableStartButton()" onerror="disableStartButton()" height="360">
 
-    <button id="startBtn" onclick="startRecording()" disabled>Start Interview</button>
-    <button id="stopBtn" onclick="stopRecording()" disabled>End Interview</button>
+    <!-- Question Display -->
+    <h2 id="questionDisplay">Waiting for question...</h2>
+
+    <div class="button-container">
+        <!-- Start/Stop Recording Button (Initially Hidden) -->
+        <button id="toggleAudioBtn" onclick="toggleAudioRecording()" style="display: none;">Start Recording</button>
+        
+        <!-- Interview Control Buttons -->
+        <div class="button-row">
+            <button id="startBtn" onclick="startRecording()" disabled>Start Interview</button>
+            <button id="stopBtn" onclick="stopRecording()" disabled>End Interview</button>
+        </div>
+    </div>
 
     <div id="processingOverlay" class="overlay">
         <p>Processing Interview...</p>
@@ -55,10 +77,13 @@
     <script>
         let recording = false;
         let processing = false;
+        let display = false
 
         function updateButtons() {
-            document.getElementById("startBtn").disabled = recording || processing;
-            document.getElementById("stopBtn").disabled = !recording || processing;
+            document.getElementById("startBtn").disabled = recording || processing || display;
+            document.getElementById("stopBtn").disabled = !recording || display;
+
+            document.getElementById("toggleAudioBtn").style.display = recording ? "inline-block" : "none";
         }
 
         function startRecording() {
@@ -67,7 +92,16 @@
                 .then(data => {
                     recording = data.recording;
                     updateButtons();
-                });
+                    document.getElementById("toggleAudioBtn").style.display = "inline-block"; // Show Start Recording button
+
+                    // Now fetch the first question
+                    return fetch('/get_first_question');
+                })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById("questionDisplay").innerText = "Question: " + data.question;
+                })
+                .catch(error => console.error("Error:", error));
         }
 
         function stopRecording() {
@@ -79,16 +113,94 @@
                     updateButtons();
                     showProcessingOverlay();
 
-                    fetch('/processing_interview')
-                        .then(response => response.json())
-                        .then(() => {
-                            processing = false;
-                            recording = false;
-                            updateButtons();
-                            hideProcessingOverlay();
-                        });
+                    // Start processing the interview
+                    return fetch('/processing_interview');
+                })
+                .then(response => response.json())
+                .then(data => {
+                    processing = false;
+                    hideProcessingOverlay();
+
+                    // Now display the results
+                    return fetch('/display_score');
+                })
+                .then(response => response.json())
+                .then(data => {
+                    display = true;
+                    showResultsOverlay(data);
+                })
+                .catch(error => console.error("Error:", error));
+        }
+
+        function toggleAudioRecording() {
+            fetch('/toggle_audio_recording')
+                .then(response => response.json())
+                .then(data => {
+                    const btn = document.getElementById("toggleAudioBtn");
+                    btn.innerText = data.audio_recording ? "Stop Recording" : "Start Recording";
+
+                    // End interview at 5 questions
+                    if (data.question_answer_counter > 5) {
+                        stopRecording();
+                        return; // Exit function early to avoid fetching more questions
+                    }
+
+                    // Fetch a random question when stopping recording
+                    if (!data.audio_recording && data.question_answer_counter>1) {
+                        fetch('/get_random_question')
+                            .then(response => response.json())
+                            .then(data => {
+                                document.getElementById("questionDisplay").innerText = "Question: " + data.question;
+                            })
+                            .catch(error => console.error("Error:", error));
+                    }
                 });
         }
+
+        function showResultsOverlay(data) {
+        let overlay = document.createElement("div");
+        overlay.id = "resultsOverlay";
+        overlay.style.position = "fixed";
+        overlay.style.top = "0";
+        overlay.style.left = "0";
+        overlay.style.width = "100%";
+        overlay.style.height = "100%";
+        overlay.style.background = "rgb(255, 255, 255)";
+        overlay.style.display = "flex";
+        overlay.style.flexDirection = "column";
+        overlay.style.justifyContent = "center";
+        overlay.style.alignItems = "center";
+        overlay.style.zIndex = "2000";
+
+        let closeButton = document.createElement("button");
+        closeButton.innerText = "X";
+        closeButton.style.position = "absolute";
+        closeButton.style.top = "10px";
+        closeButton.style.right = "10px";
+        closeButton.style.fontSize = "20px";
+        closeButton.style.padding = "5px 10px";
+        closeButton.style.cursor = "pointer";
+
+        closeButton.onclick = function () {
+            document.body.removeChild(overlay);
+            display = false; // Reset display flag
+            updateButtons(); // Re-enable Start/Stop buttons
+        };
+
+        let resultText = document.createElement("p");
+        resultText.innerText = `Posture is ${data.posture_score >= 0.7 ? "Good!" : "Bad!"}\n
+                                Posture Rating: ${(data.posture_score * 100).toFixed(3)}%\n
+                                Communication Skills: ${(data.average_communication_score * 100).toFixed(3)}%`;
+
+        // Set font size and other styles
+        resultText.style.fontSize = "32px";
+
+        overlay.appendChild(closeButton);
+        overlay.appendChild(resultText);
+        document.body.appendChild(overlay);
+    }
+
+
 
         function enableStartButton() {
             document.getElementById("startBtn").disabled = false;

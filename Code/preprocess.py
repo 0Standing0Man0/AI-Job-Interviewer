@@ -1,3 +1,6 @@
+# Author: Ambar Roy
+# email: ambarroy11@gmail.com
+
 import cv2
 import torch
 import torchvision.transforms as transforms
