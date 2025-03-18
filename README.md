@@ -1,7 +1,7 @@
 # AI-Job-Interviewer
 This project is a simple implementation of a job interviewer system using Python. The system will ask the user a total of 5 HR questions by default and display their score based on Posture and Communication Skills.
 
-# Model
+## Model
 To detect posture, we utilized a VGGNet-16 model, fine-tuned on a private dataset. This resulted in an F1-score of 1.0.
 
 [Trained VGGNet-16 Model](https://drive.google.com/file/d/1Xiyyr1PHBvNaPnPl_b-4ljQ60y2b6DDy/view?usp=sharing)
@@ -11,7 +11,7 @@ To detect posture, we utilized a VGGNet-16 model, fine-tuned on a private datase
 1.  Clone the repository:
 
     ```bash
-    git clone [repository URL]
+    git clone https://github.com/0Standing0Man0/AI-Job-Interviewer.git
     ```
 
 2.  Navigate to the project directory:
